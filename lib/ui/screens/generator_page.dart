@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:sonix_plan/services/history/auto_archive_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:sonix_plan/services/database_service.dart';
 import 'package:sonix_plan/ui/models/theme_item.dart';
@@ -123,8 +124,25 @@ class _GeneratorPageState extends State<GeneratorPage> {
         _isLoading = false;
       });
       
+      // Préparer les publications pour l'archivage automatique
+      List<PendingPublication> pendingPubs = [];
+      for (var slot in newSlots) {
+        for (var theme in slot.themes) {
+          pendingPubs.add(PendingPublication(
+            title: theme.partsInThisPublication > 1
+                ? "${theme.theme.title} (${theme.partsInThisPublication} parties)"
+                : theme.theme.title,
+            fbLink: theme.theme.fbLink,
+            slotTime: slot.hour,
+          ));
+        }
+      }
+      
+      // Ajouter au service d'archivage
+      AutoArchiveService().addPendingPublications(pendingPubs);
+      
       final totalThemes = newSlots.fold(0, (sum, slot) => sum + slot.themes.length);
-      _showSuccess("6 créneaux générés avec $totalThemes thème(s) au total");
+      _showSuccess("6 créneaux générés avec $totalThemes thème(s) au total\n📦 Archivage programmé à 23:59");
       
     } catch (e) {
       _showError("Erreur lors de la génération: $e");
@@ -289,14 +307,12 @@ class _PublicationItemState extends State<PublicationItem> {
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
       
-      // Sauvegarder dans l'historique
-      final newPub = Publication(
-        title: "${widget.theme.theme.title} (${widget.theme.partsInThisPublication} partie${widget.theme.partsInThisPublication > 1 ? 's' : ''})",
-        fbLink: widget.theme.theme.fbLink,
-        slotTime: widget.slotTime,
-        datePublished: DateTime.now(),
-      );
-      await DatabaseService().savePublication(newPub);
+      // Marquer comme terminée dans le service d'archivage
+      final displayTitle = widget.theme.partsInThisPublication > 1
+          ? "${widget.theme.theme.title} (${widget.theme.partsInThisPublication} parties)"
+          : widget.theme.theme.title;
+      
+      AutoArchiveService().markAsCompleted(widget.slotTime, displayTitle);
       
       setState(() => _isFinished = true);
       widget.onStatusChanged();
@@ -304,6 +320,13 @@ class _PublicationItemState extends State<PublicationItem> {
   }
 
   void _handleReset() {
+    // Marquer comme non terminée dans le service d'archivage
+    final displayTitle = widget.theme.partsInThisPublication > 1
+        ? "${widget.theme.theme.title} (${widget.theme.partsInThisPublication} parties)"
+        : widget.theme.theme.title;
+    
+    AutoArchiveService().markAsIncomplete(widget.slotTime, displayTitle);
+    
     setState(() => _isFinished = false);
     widget.onStatusChanged();
   }

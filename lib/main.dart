@@ -1,56 +1,99 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:sonix_plan/services/history/auto_archive_service.dart';
 import 'package:sonix_plan/ui/home_page.dart';
 import 'package:sonix_plan/services/database_service.dart';
+import 'package:sonix_plan/firebase_options.dart';
 
 void main() async {
-  print('🚀 Démarrage de l\'application...');
+  print('🚀 [MAIN] Démarrage de l\'application...');
   
-  // IMPORTANT : Nécessaire pour l'initialisation asynchrone
   WidgetsFlutterBinding.ensureInitialized();
-  print('✅ Flutter binding initialisé');
+  print('✅ [MAIN] Flutter binding initialisé');
   
   try {
-    // Initialiser Hive AVANT de lancer l'app
+    print('🔥 [MAIN] Initialisation Firebase...');
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    print('✅ [MAIN] Firebase initialisé avec succès');
+    
+    print('💾 [MAIN] Initialisation Hive...');
     await DatabaseService.initialize();
-    print('✅ Base de données initialisée');
-    print('✅ ThemeBox: ${DatabaseService().themeBox.isOpen}');
-    print('✅ PublicationBox: ${DatabaseService().publicationBox.isOpen}');
+    print('✅ [MAIN] Hive initialisé avec succès');
+    
+    print('📦 [MAIN] Démarrage service d\'archivage...');
+    AutoArchiveService().startAutoArchive();
+    print('✅ [MAIN] Service d\'archivage démarré');
+    
   } catch (e, stackTrace) {
-    print('❌ ERREUR FATALE lors de l\'initialisation: $e');
-    print('Stack trace: $stackTrace');
-    // Afficher l'erreur à l'utilisateur
+    print('❌ [MAIN] ERREUR FATALE: $e');
+    print('📍 [MAIN] Stack trace: $stackTrace');
     runApp(MaterialApp(
+      debugShowCheckedModeBanner: false,
       home: Scaffold(
         body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.error, size: 64, color: Colors.red),
-              const SizedBox(height: 16),
-              const Text('Erreur d\'initialisation de la base de données'),
-              const SizedBox(height: 8),
-              Text('$e', textAlign: TextAlign.center),
-            ],
+          child: Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.error_outline, size: 80, color: Colors.red),
+                const SizedBox(height: 20),
+                const Text(
+                  'Erreur d\'initialisation',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    '$e',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                ElevatedButton(
+                  onPressed: () => main(),
+                  child: const Text('RÉESSAYER'),
+                )
+              ],
+            ),
           ),
         ),
       ),
     ));
-    return; // Ne pas lancer l'app si l'init échoue
+    return;
   }
   
-  print('🎯 Lancement de l\'app...');
+  print('🎯 [MAIN] Lancement de SonixPlanApp...');
   runApp(const SonixPlanApp());
+  print('✅ [MAIN] runApp() appelé');
 }
 
 class SonixPlanApp extends StatefulWidget {
   const SonixPlanApp({super.key});
 
   @override
-  State<SonixPlanApp> createState() => _SonixPlanAppState();
+  State<SonixPlanApp> createState() {
+    print('🏗️ [APP] Création de _SonixPlanAppState');
+    return _SonixPlanAppState();
+  }
 }
 
 class _SonixPlanAppState extends State<SonixPlanApp> {
-  ThemeMode _themeMode = ThemeMode.dark; // Par défaut
+  ThemeMode _themeMode = ThemeMode.dark;
+
+  @override
+  void initState() {
+    super.initState();
+    print('🎨 [APP] initState appelé');
+  }
 
   void toggleTheme() {
     setState(() {
@@ -60,27 +103,22 @@ class _SonixPlanAppState extends State<SonixPlanApp> {
 
   @override
   Widget build(BuildContext context) {
-    print('📱 Building MaterialApp...');
-    
+    print('🔨 [APP] build() appelé');
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       themeMode: _themeMode,
-      // Thème Clair
       theme: ThemeData(
         brightness: Brightness.light,
         primarySwatch: Colors.red,
         scaffoldBackgroundColor: Colors.white,
         cardTheme: CardThemeData(color: Colors.grey[100]),
-        bottomNavigationBarTheme: BottomNavigationBarThemeData(
+        bottomNavigationBarTheme: const BottomNavigationBarThemeData(
           backgroundColor: Colors.white,
           selectedItemColor: Colors.red,
-          unselectedItemColor: Colors.grey[600],
-          selectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold),
-          unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.normal),
+          unselectedItemColor: Colors.grey,
           type: BottomNavigationBarType.fixed,
         ),
       ),
-      // Thème Sombre
       darkTheme: ThemeData(
         brightness: Brightness.dark,
         primaryColor: Colors.redAccent[700],
@@ -90,12 +128,15 @@ class _SonixPlanAppState extends State<SonixPlanApp> {
           backgroundColor: const Color(0xFF1E1E1E),
           selectedItemColor: Colors.redAccent,
           unselectedItemColor: Colors.grey[400],
-          selectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold),
-          unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.normal),
           type: BottomNavigationBarType.fixed,
         ),
       ),
-      home: HomePage(onThemeToggle: toggleTheme),
+      home: Builder(
+        builder: (context) {
+          print('🏠 [APP] Construction de HomePage...');
+          return HomePage(onThemeToggle: toggleTheme);
+        },
+      ),
     );
   }
 }
